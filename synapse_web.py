@@ -71,10 +71,17 @@ available_ports = []
 current_port = None
 connection_lock = threading.Lock()
 
+# Dedicated Heart Rate Serial Details
+hr_ser = None
+hr_connected = False
+hr_port = None
+hr_lock = threading.Lock()
+hr_monitoring_thread = None
+
 # Medicine and schedule data
 medicines = []
 schedule = []
-emergency_contact = {"name": "", "number": ""}
+emergency_contact = {"name": "Rishik", "number": "+91 1234567890"}
 
 # Heart rate data
 heart_rate_data = {
@@ -683,6 +690,119 @@ def parse_gps_response(response):
     # Update global GPS data
     gps_data = updated_data    
     return updated_data
+
+# --- Dedicated Heart Rate Page Routes ---
+
+@app.route('/heart_rate')
+def heart_rate_page():
+    """Render the dedicated heart rate monitor page"""
+    return render_template('heart_rate.html')
+
+@app.route('/api/ports')
+def list_ports_api():
+    """List available serial ports"""
+    return jsonify(scan_ports())
+
+@app.route('/api/heart_rate/connect', methods=['POST'])
+def connect_heart_rate_api():
+    """Connect to a separate serial port for heart rate monitoring"""
+    data = request.json
+    port = data.get('port')
+    
+    if not port:
+        return jsonify({"success": False, "message": "Port is required"})
+        
+    global hr_ser, hr_connected, hr_port, hr_monitoring_thread
+    
+    with hr_lock:
+        if hr_connected and hr_ser and hr_ser.is_open:
+            try:
+                hr_ser.close()
+            except:
+                pass
+            hr_connected = False
+            
+        try:
+            hr_ser = serial.Serial(port, 9600, timeout=1) # Pulse Sensor usually 9600
+            hr_connected = True
+            hr_port = port
+            
+            # Start monitoring thread
+            if hr_monitoring_thread is None or not hr_monitoring_thread.is_alive():
+                hr_monitoring_thread = threading.Thread(target=monitor_hr_dedicated, daemon=True)
+                hr_monitoring_thread.start()
+                
+            return jsonify({"success": True, "message": "Connected successfully"})
+        except Exception as e:
+            logger.error(f"Error connecting to HR port: {e}")
+            hr_connected = False
+            return jsonify({"success": False, "message": str(e)})
+
+@app.route('/api/heart_rate/disconnect', methods=['POST'])
+def disconnect_heart_rate_api():
+    """Disconnect from heart rate port"""
+    global hr_ser, hr_connected
+    
+    with hr_lock:
+        if hr_connected and hr_ser:
+            try:
+                hr_ser.close()
+            except:
+                pass
+        hr_connected = False
+        return jsonify({"success": True})
+
+@app.route('/api/heart_rate/data')
+def get_heart_rate_data_api():
+    """Get the current heart rate data"""
+    # Return the global sensor_data (which is updated by the thread)
+    return jsonify({
+        "bpm": sensor_data["heartRate"],
+        "valid": sensor_data["validReadings"],
+        "last_updated": sensor_data["last_updated"]
+    })
+
+def monitor_hr_dedicated():
+    """Monitoring thread for dedicated HR port"""
+    global hr_ser, hr_connected
+    
+    logger.info("Starting dedicated HR monitoring thread")
+    
+    while True:
+        with hr_lock:
+            if not hr_connected or not hr_ser or not hr_ser.is_open:
+                time.sleep(1)
+                continue
+                
+        try:
+            if hr_ser.in_waiting:
+                line = hr_ser.readline().decode('utf-8', errors='ignore').strip()
+                
+                # Format expected from external_pulse_sensor.ino is "HR:75"
+                if line.startswith("HR:"):
+                    try:
+                        bpm = float(line.split(":")[1])
+                        
+                        # Update global data
+                        sensor_data["heartRate"] = bpm
+                        sensor_data["validReadings"] = True
+                        sensor_data["last_updated"] = time.time()
+                        
+                        # Also update the legacy data structure
+                        heart_rate_data.update({
+                            "bpm": bpm,
+                            "valid": True,
+                            "last_updated": time.time()
+                        })
+                        
+                    except ValueError:
+                        pass
+            else:
+                time.sleep(0.1)
+                
+        except Exception as e:
+            logger.error(f"Error in HR thread: {e}")
+            time.sleep(1)
 
 def monitor_heart_rate():
     """Background thread to monitor heart rate data from device"""
@@ -1592,26 +1712,7 @@ def api_heart_rate():
             "averaging_period": BUFFER_DURATION
         })
 
-@app.route('/heart_rate')
-def heart_rate_page():
-    """Render the heart rate monitoring page"""
-    global connected
-    
-    # Always show the page, but with a warning if not connected
-    if not connected:
-        flash("Not connected to a device. Heart rate monitoring not available.", "warning")
-        
-    # Get current heart rate data
-    hr_data = fetch_heart_rate()
-    
-    # Include time module for template
-    import time
-    
-    return render_template('heart_rate.html', 
-                          connected=connected, 
-                          heart_rate=hr_data,
-                          time=time,
-                          current_port=current_port)
+
 
 @app.route('/health')
 def health_redirect():

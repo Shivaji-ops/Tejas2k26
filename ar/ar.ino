@@ -70,8 +70,8 @@ String medicines[4]; // Keep fixed size of 4
 int totalMedicines = 4;
 
 // Emergency Contact
-String emergencyContact = "Dr Shravya";
-String emergencyNumber = "+91 8807612060";
+String emergencyContact = "Rishik";
+String emergencyNumber = "+91 1234567890";
 
 // Daily Schedule
 String schedule[4]; // Keep fixed size of 4

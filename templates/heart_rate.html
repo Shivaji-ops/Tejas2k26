@@ -1,111 +1,127 @@
 {% extends "base.html" %}
 
-{% block title %}Heart Rate - Synapse AR Controller{% endblock %}
+{% block title %}Heart Rate Monitor - Synapse AR Controller{% endblock %}
 
 {% block header_title %}Heart Rate Monitor{% endblock %}
-{% block header_subtitle %}10-second average heart rate from mix.ino sensor{% endblock %}
+{% block header_subtitle %}Monitor real-time heart rate data from your pulse sensor{% endblock %}
 
 {% block content %}
 <div class="container">
-    <div class="row">
-        <!-- Current Heart Rate -->
-        <div class="col-md-6">
+    <div class="row justify-content-center">
+        <!-- Connection Panel -->
+        <div class="col-lg-10 mb-4">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="fas fa-heartbeat me-2"></i>10-Second Average Heart Rate</h5>
-                    <button id="refresh-hr" class="btn btn-sm btn-outline-primary">
-                        <i class="fas fa-sync-alt"></i>
-                    </button>
+                    <h5 class="mb-0"><i class="fas fa-plug me-2"></i>Sensor Connection</h5>
+                    <div id="connectionStatusBadge">
+                        <span class="badge bg-secondary rounded-pill"><i class="fas fa-circle me-1"></i> Not Connected</span>
+                    </div>
                 </div>
-                <div class="card-body text-center">
-                    <div class="heart-rate-display {% if heart_rate.valid %}pulse-animation{% endif %}" id="bpmValue">
-                        {% if heart_rate.valid %}
-                            {{ heart_rate.bpm|int }}
-                        {% else %}
-                            --
-                        {% endif %}
-                        <span class="heart-rate-unit">BPM</span>
+                <div class="card-body">
+                    <div class="row align-items-end">
+                        <div class="col-md-6 mb-3 mb-md-0">
+                            <label for="portSelect" class="form-label">Select Port</label>
+                            <select id="portSelect" class="form-select">
+                                <option value="">Loading ports...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3 mb-md-0">
+                            <button id="refreshBtn" class="btn btn-outline-primary w-100">
+                                <i class="fas fa-sync-alt me-2"></i>Refresh
+                            </button>
+                        </div>
+                        <div class="col-md-3">
+                            <button id="connectBtn" class="btn btn-success w-100" disabled>
+                                <i class="fas fa-plug me-2"></i>Connect
+                            </button>
+                        </div>
                     </div>
-                    <div id="heart-rate-status" class="mb-3">
-                        {% if heart_rate.valid %}
-                            {% set bpm = heart_rate.bpm|int %}
-                            {% if bpm < 60 %}
-                                <span class="badge bg-warning">Low Heart Rate</span>
-                            {% elif bpm > 100 %}
-                                <span class="badge bg-warning">Elevated Heart Rate</span>
-                            {% else %}
-                                <span class="badge bg-success">Normal Heart Rate</span>
-                            {% endif %}
-                        {% else %}
-                            <span class="badge bg-secondary">No Data</span>
-                        {% endif %}
-                    </div>
-                    <div id="averaging-info" class="text-muted small">
-                        <span id="readings-count">--</span> readings in last 10 seconds
-                    </div>
-                    <div id="lastUpdated" class="text-muted small mt-2">
-                        {% if heart_rate.last_updated %}
-                            Last updated: {{ ((time.time() - heart_rate.last_updated)|int) }} seconds ago
-                        {% else %}
-                            Waiting for data...
-                        {% endif %}
-                    </div>
+                    <p id="connectionStatus" class="mt-2 mb-0 text-muted small">Not connected</p>
                 </div>
             </div>
         </div>
 
-        <!-- Health Card -->
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Heart Rate Info</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-12">
-                            <h6>Healthy Range:</h6>
-                            <p>60-100 BPM (Adult)</p>
+        <!-- Main Display -->
+        <div class="col-lg-10">
+            <div class="row g-4">
+                <!-- Real-time Heart Rate Card -->
+                <div class="col-md-6">
+                    <div class="card hr-monitor-card">
+                        <div class="card-body text-center p-4">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <h5 class="card-title mb-0"><i class="fas fa-heartbeat me-2 text-danger"></i>Current Heart Rate</h5>
+                                <span id="liveIndicator" class="live-indicator"></span>
+                            </div>
                             
-                            <h6 class="mt-3">Your Status:</h6>
-                            <p id="status-text">
-                                {% if heart_rate.valid %}
-                                    {% set bpm = heart_rate.bpm|int %}
-                                    {% if bpm < 60 %}
-                                        Below normal range
-                                    {% elif bpm > 100 %}
-                                        Above normal range
-                                    {% else %}
-                                        Within normal range
-                                    {% endif %}
-                                {% else %}
-                                    No data available
-                                {% endif %}
-                            </p>
+                            <div class="hr-display-container mb-4">
+                                <div class="d-flex align-items-baseline justify-content-center">
+                                    <span id="bpmValue" class="hr-value">--</span>
+                                    <span class="hr-unit ms-2">BPM</span>
+                                </div>
+                            </div>
+                            
+                            <div class="heart-icon-container mb-3">
+                                <i id="heartIcon" class="fas fa-heart heart-icon"></i>
+                            </div>
+                            
+                            <div id="lastUpdated" class="text-muted small">Last update: Never</div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
 
-    <!-- Reference Values -->
-    <div class="card mt-3">
-        <div class="card-header">
-            <h5 class="mb-0"><i class="fas fa-list-ul me-2"></i>Heart Rate Reference Values</h5>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-4">
-                    <h6>Adults (18+)</h6>
-                    <p>Normal Range: 60-100 BPM</p>
+                <!-- History Graph Card -->
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>History (Last 60s)</h5>
+                        </div>
+                        <div class="card-body">
+                            <div style="height: 300px;">
+                                <canvas id="bpmChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="col-md-4">
-                    <h6>Athletes</h6>
-                    <p>Normal Range: 40-60 BPM</p>
-                </div>
-                <div class="col-md-4">
-                    <h6>During Exercise</h6>
-                    <p>Maximum: 220 - age</p>
+
+                <!-- Statistics Card -->
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Heart Rate Information</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center">
+                                <div class="col-md-3 mb-3 mb-md-0">
+                                    <div class="stat-box">
+                                        <i class="fas fa-heartbeat text-primary mb-2" style="font-size: 2rem;"></i>
+                                        <h6 class="text-muted mb-1">Normal Range</h6>
+                                        <p class="mb-0 fw-bold">60-100 BPM</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 mb-3 mb-md-0">
+                                    <div class="stat-box">
+                                        <i class="fas fa-running text-success mb-2" style="font-size: 2rem;"></i>
+                                        <h6 class="text-muted mb-1">During Exercise</h6>
+                                        <p class="mb-0 fw-bold">100-180 BPM</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 mb-3 mb-md-0">
+                                    <div class="stat-box">
+                                        <i class="fas fa-bed text-info mb-2" style="font-size: 2rem;"></i>
+                                        <h6 class="text-muted mb-1">Resting</h6>
+                                        <p class="mb-0 fw-bold">50-70 BPM</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="stat-box">
+                                        <i class="fas fa-exclamation-triangle text-warning mb-2" style="font-size: 2rem;"></i>
+                                        <h6 class="text-muted mb-1">Alert If</h6>
+                                        <p class="mb-0 fw-bold">&lt;50 or &gt;120</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -115,112 +131,367 @@
 
 {% block styles %}
 <style>
-    .heart-rate-display {
-        font-size: 4rem;
-        font-weight: bold;
-        text-align: center;
-        color: var(--primary-color);
-        margin: 20px 0;
+    .hr-monitor-card {
+        border-left: 4px solid var(--danger-color);
     }
     
-    .heart-rate-unit {
-        font-size: 1.5rem;
+    .hr-display-container {
+        padding: 20px 0;
+    }
+    
+    .hr-value {
+        font-size: 5rem;
+        font-weight: 700;
         color: var(--text-light);
+        line-height: 1;
     }
     
-    .dark-theme .heart-rate-unit {
+    .dark-theme .hr-value {
         color: var(--text-dark);
     }
     
-    .signal-quality {
-        width: 100px;
-        height: 100px;
-        margin: 0 auto;
-        position: relative;
+    .hr-unit {
+        font-size: 1.5rem;
+        color: var(--muted-text-light);
+        font-weight: 500;
     }
     
-    .quality-circle {
-        stroke: var(--primary-color);
-        fill: none;
-        stroke-width: 4;
-        stroke-linecap: round;
+    .dark-theme .hr-unit {
+        color: var(--muted-text-dark);
     }
     
-    .dark-theme .quality-circle {
-        stroke: #a29bfe;
+    .heart-icon {
+        font-size: 3.5rem;
+        color: #cbd5e1;
+        transition: all 0.2s ease;
     }
     
-    .pulse-animation {
-        animation: pulse 1.5s ease-in-out infinite;
+    .dark-theme .heart-icon {
+        color: #475569;
     }
     
-    @keyframes pulse {
-        0% { transform: scale(1); }
-        50% { transform: scale(1.05); }
-        100% { transform: scale(1); }
+    .heart-icon.beating {
+        color: #ef4444;
+        animation: heartbeat 1s infinite;
+    }
+    
+    @keyframes heartbeat {
+        0%, 100% { transform: scale(1); }
+        25% { transform: scale(1.1); }
+    }
+    
+    .live-indicator {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background-color: #9ca3af;
+    }
+    
+    .live-indicator.active {
+        background-color: #10b981;
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        animation: pulse-ring 1.5s infinite;
+    }
+    
+    @keyframes pulse-ring {
+        0% {
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        }
+        50% {
+            box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+        }
+        100% {
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+        }
+    }
+    
+    .stat-box {
+        padding: 15px;
+        background-color: var(--light-bg);
+        border-radius: var(--border-radius);
+        transition: all 0.3s ease;
+    }
+    
+    .dark-theme .stat-box {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+    
+    .stat-box:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    
+    .dark-theme .stat-box:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Dark theme: stat-box text */
+    .dark-theme .stat-box h6 {
+        color: var(--muted-text-dark) !important;
+    }
+
+    .dark-theme .stat-box p {
+        color: var(--text-dark);
+    }
+
+    /* Dark theme: form-select */
+    .dark-theme .form-select {
+        background-color: rgba(255, 255, 255, 0.05);
+        border-color: rgba(255, 255, 255, 0.1);
+        color: var(--text-dark);
+    }
+
+    .dark-theme .form-select option {
+        background-color: var(--card-bg-dark);
+        color: var(--text-dark);
+    }
+
+    .dark-theme .form-select:focus {
+        box-shadow: 0 0 0 0.2rem rgba(110, 72, 170, 0.25);
+        border-color: var(--primary-color);
+    }
+
+    /* Dark theme: form-label */
+    .dark-theme .form-label {
+        color: var(--text-dark);
+    }
+
+    /* Dark theme: card title */
+    .dark-theme .card-title {
+        color: var(--text-dark);
+    }
+
+    /* Dark theme: card header h5 */
+    .dark-theme .card-header h5 {
+        color: var(--text-dark);
+    }
+
+    /* Dark theme: connection status text */
+    .dark-theme #connectionStatus.text-muted {
+        color: var(--muted-text-dark) !important;
+    }
+
+    /* Dark theme: last updated text */
+    .dark-theme #lastUpdated {
+        color: var(--muted-text-dark) !important;
+    }
+
+    /* Dark theme: fw-bold text in stat boxes */
+    .dark-theme .stat-box .fw-bold {
+        color: var(--text-dark);
     }
 </style>
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    function updateHeartRate() {
-        if (!{{ connected|tojson }}) return;
-
-        fetch('/api/heart_rate')
-            .then(response => response.json())
-            .then(data => {
-                if (data.valid) {
-                    // Update BPM display
-                    const bpmValue = Math.round(data.bpm);
-                    document.getElementById('bpmValue').innerText = bpmValue;
-                    document.querySelector('.heart-rate-display').classList.add('pulse-animation');
-                    
-                    // Update readings count
-                    document.getElementById('readings-count').innerText = data.readings_count;
-                    
-                    // Update status
-                    let statusBadge = '';
-                    if (bpmValue < 60) {
-                        statusBadge = '<span class="badge bg-warning">Low Heart Rate</span>';
-                    } else if (bpmValue > 100) {
-                        statusBadge = '<span class="badge bg-warning">Elevated Heart Rate</span>';
-                    } else {
-                        statusBadge = '<span class="badge bg-success">Normal Heart Rate</span>';
-                    }
-                    document.getElementById('heart-rate-status').innerHTML = statusBadge;
-                    
-                    // Update last updated time
-                    if (data.last_updated) {
-                        const now = Math.floor(Date.now() / 1000);
-                        const secondsAgo = now - data.last_updated;
-                        document.getElementById('lastUpdated').innerText = `Last updated: ${secondsAgo} seconds ago`;
-                    }
-                } else {
-                    document.getElementById('bpmValue').innerText = '--';
-                    document.querySelector('.heart-rate-display').classList.remove('pulse-animation');
-                    document.getElementById('readings-count').innerText = '--';
-                    document.getElementById('heart-rate-status').innerHTML = '<span class="badge bg-secondary">No Data</span>';
-                    document.getElementById('lastUpdated').innerText = 'Waiting for data...';
-                }
-            })
-            .catch(error => {
-                console.error('Error fetching heart rate data:', error);
-                document.getElementById('bpmValue').innerText = '--';
-                document.getElementById('readings-count').innerText = '--';
-                document.getElementById('heart-rate-status').innerHTML = '<span class="badge bg-danger">Error</span>';
-                document.getElementById('lastUpdated').innerText = 'Error fetching data';
-                document.querySelector('.heart-rate-display').classList.remove('pulse-animation');
-            });
+    let isConnected = false;
+    let chart;
+    let updateInterval;
+    
+    // Get theme-aware colors
+    function getThemeColors() {
+        const isDarkTheme = document.body.classList.contains('dark-theme');
+        return {
+            gridColor: isDarkTheme ? 'rgba(148, 163, 184, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+            textColor: isDarkTheme ? '#94a3b8' : '#64748b'
+        };
     }
 
-    // Update heart rate data every 2 seconds
-    setInterval(updateHeartRate, 2000);
+    // Initialize Chart
+    function initChart() {
+        const ctx = document.getElementById('bpmChart').getContext('2d');
+        const { gridColor, textColor } = getThemeColors();
+        
+        chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Array(60).fill(''),
+                datasets: [{
+                    label: 'BPM',
+                    data: Array(60).fill(null),
+                    borderColor: '#ef4444',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { 
+                    legend: { display: false },
+                    tooltip: {
+                        enabled: true,
+                        mode: 'index',
+                        intersect: false
+                    }
+                },
+                scales: {
+                    y: {
+                        min: 40,
+                        max: 180,
+                        grid: { color: gridColor },
+                        ticks: { color: textColor }
+                    },
+                    x: { 
+                        display: false 
+                    }
+                },
+                animation: false
+            }
+        });
+    }
 
-    // Initial update
-    updateHeartRate();
+    // Update chart colors when theme changes
+    function updateChartTheme() {
+        if (!chart) return;
+        const { gridColor, textColor } = getThemeColors();
+        chart.options.scales.y.grid.color = gridColor;
+        chart.options.scales.y.ticks.color = textColor;
+        chart.update();
+    }
 
-    // Add refresh button handler
-    document.getElementById('refresh-hr').addEventListener('click', updateHeartRate);
+    // Load Ports
+    async function loadPorts() {
+        try {
+            const response = await fetch('/api/ports');
+            const ports = await response.json();
+            const select = document.getElementById('portSelect');
+            select.innerHTML = '<option value="">Select a port...</option>';
+            
+            ports.forEach(port => {
+                const option = document.createElement('option');
+                option.value = port.device;
+                option.textContent = `${port.device} - ${port.description}`;
+                select.appendChild(option);
+            });
+            
+            // Enable connect button if ports are available
+            document.getElementById('connectBtn').disabled = ports.length === 0;
+        } catch (err) {
+            console.error('Failed to load ports:', err);
+            document.getElementById('connectionStatus').textContent = 'Error loading ports';
+            document.getElementById('connectionStatus').className = 'mt-2 mb-0 text-danger small';
+        }
+    }
+
+    // Connect/Disconnect
+    document.getElementById('connectBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('connectBtn');
+        const status = document.getElementById('connectionStatus');
+        const badge = document.getElementById('connectionStatusBadge');
+        const port = document.getElementById('portSelect').value;
+
+        if (!isConnected) {
+            if (!port) {
+                alert('Please select a port');
+                return;
+            }
+            
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Connecting...';
+            
+            try {
+                const response = await fetch('/api/heart_rate/connect', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ port: port })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    isConnected = true;
+                    btn.innerHTML = '<i class="fas fa-unlink me-2"></i>Disconnect';
+                    btn.className = 'btn btn-danger w-100';
+                    status.textContent = 'Connected to ' + port;
+                    status.className = 'mt-2 mb-0 text-success small';
+                    badge.innerHTML = '<span class="badge bg-success rounded-pill"><i class="fas fa-check-circle me-1"></i> Connected</span>';
+                    document.getElementById('liveIndicator').classList.add('active');
+                    startMonitoring();
+                } else {
+                    status.textContent = 'Error: ' + result.message;
+                    status.className = 'mt-2 mb-0 text-danger small';
+                    btn.innerHTML = '<i class="fas fa-plug me-2"></i>Connect';
+                }
+            } catch (err) {
+                status.textContent = 'Connection failed: ' + err.message;
+                status.className = 'mt-2 mb-0 text-danger small';
+                btn.innerHTML = '<i class="fas fa-plug me-2"></i>Connect';
+            } finally {
+                btn.disabled = false;
+            }
+        } else {
+            // Disconnect
+            try {
+                await fetch('/api/heart_rate/disconnect', { method: 'POST' });
+                isConnected = false;
+                btn.innerHTML = '<i class="fas fa-plug me-2"></i>Connect';
+                btn.className = 'btn btn-success w-100';
+                status.textContent = 'Disconnected';
+                status.className = 'mt-2 mb-0 text-muted small';
+                badge.innerHTML = '<span class="badge bg-secondary rounded-pill"><i class="fas fa-circle me-1"></i> Not Connected</span>';
+                document.getElementById('liveIndicator').classList.remove('active');
+                stopMonitoring();
+            } catch (err) {
+                console.error('Disconnect error:', err);
+            }
+        }
+    });
+
+    document.getElementById('refreshBtn').addEventListener('click', loadPorts);
+
+    function startMonitoring() {
+        updateInterval = setInterval(async () => {
+            if (!isConnected) return;
+            
+            try {
+                const response = await fetch('/api/heart_rate/data');
+                const data = await response.json();
+                
+                if (data.bpm > 0) {
+                    document.getElementById('bpmValue').textContent = Math.round(data.bpm);
+                    document.getElementById('heartIcon').className = 'fas fa-heart heart-icon beating';
+                    document.getElementById('lastUpdated').textContent = 'Last update: ' + new Date().toLocaleTimeString();
+                    
+                    // Update Chart
+                    const currentData = chart.data.datasets[0].data;
+                    currentData.shift();
+                    currentData.push(data.bpm);
+                    chart.update();
+                } else {
+                    document.getElementById('heartIcon').className = 'fas fa-heart heart-icon';
+                }
+            } catch (err) {
+                console.error('Error fetching data:', err);
+            }
+        }, 1000);
+    }
+
+    function stopMonitoring() {
+        clearInterval(updateInterval);
+        document.getElementById('bpmValue').textContent = '--';
+        document.getElementById('heartIcon').className = 'fas fa-heart heart-icon';
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        initChart();
+        loadPorts();
+
+        // Listen for theme toggle changes and update chart colors
+        const themeToggle = document.getElementById('theme-toggle');
+        if (themeToggle) {
+            themeToggle.addEventListener('change', function() {
+                // Small delay to let the dark-theme class be applied first
+                setTimeout(updateChartTheme, 50);
+            });
+        }
+    });
 </script>
-{% endblock %} 
+{% endblock %}

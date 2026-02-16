@@ -125,7 +125,7 @@ def send_medicine_to_arduino(arduino, medicine_name, status):
         print(f"Error sending medicine info: {e}")
 
 class SharedVideoStream:
-    def __init__(self, src=0):
+    def __init__(self, src=1):
         self.stream = cv2.VideoCapture(src)
         self.stream.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         self.stream.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)

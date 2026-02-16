@@ -1,13 +1,10 @@
 # Core dependencies
-Flask==2.0.1
+Flask==2.2.3
 pyserial==3.5
 numpy>=1.22.0
 opencv-python>=4.5.4.60
 mediapipe>=0.8.9
-Werkzeug==2.0.1
-Jinja2==3.0.1
-itsdangerous==2.0.1
-click==8.0.1
+requests==2.28.2
 
 # Web interface dependencies
 Flask-SocketIO
@@ -17,15 +14,8 @@ gevent
 gevent-websocket
 eventlet
 
-# Web server dependencies
-flask==2.2.3
-requests==2.28.2
-
 # Telegram Bot API
 pyTelegramBotAPI==4.12.0
-
-# For threading and asynchronous functionality
-threading2==0.3.1
 
 # For date manipulation
 python-dateutil==2.8.2 
